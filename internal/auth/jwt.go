@@ -63,3 +63,15 @@ func GetBearerToken(headers http.Header) (string, error) {
 
 	return strings.TrimSpace(token), nil
 }
+
+func GetAPIKey(headers http.Header) (string, error) {
+	a := headers["Authorization"]
+
+	if len(a) < 1 {
+		return "", errors.New("You need to provide auth token header")
+	}
+
+	token := strings.TrimPrefix(strings.Join(a, " "), "ApiKey ")
+
+	return strings.TrimSpace(token), nil
+}

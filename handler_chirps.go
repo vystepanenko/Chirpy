@@ -69,7 +69,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	respindWithJSON(w, 201, Chirpy{
+	respondWithJSON(w, 201, Chirpy{
 		ID:        c.ID,
 		UserId:    c.UserID,
 		Body:      c.Body,
@@ -108,10 +108,26 @@ func cleanBody(msg string) string {
 }
 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.db.GetAllChirps(context.Background())
-	if err != nil {
-		respondWithError(w, 400, "Error getting chirps")
-		return
+	auhorId := r.URL.Query().Get("author_id")
+	var chirps []database.Chirp
+	if auhorId != "" {
+		userId, err := uuid.Parse(auhorId)
+		if err != nil {
+			respondWithError(w, 400, "Error getting chirps")
+			return
+		}
+		chirps, err = cfg.db.GetAllChirpsByAuthor(context.Background(), userId)
+		if err != nil {
+			respondWithError(w, 400, "Error getting chirps")
+			return
+		}
+	} else {
+		var err error
+		chirps, err = cfg.db.GetAllChirps(context.Background())
+		if err != nil {
+			respondWithError(w, 400, "Error getting chirps")
+			return
+		}
 	}
 
 	allChirps := make([]Chirpy, 0)
@@ -125,7 +141,7 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 		})
 	}
 
-	respindWithJSON(w, 200, allChirps)
+	respondWithJSON(w, 200, allChirps)
 }
 
 func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
@@ -136,19 +152,66 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 
 	chirpIdParsed, err := uuid.Parse(chirpId)
 	if err != nil {
-		respindWithJSON(w, 404, "Chirp not found")
+		respondWithJSON(w, 404, "Chirp not found")
 	}
 
 	chirpDb, err := cfg.db.GetChirp(context.Background(), chirpIdParsed)
 	if err != nil {
-		respindWithJSON(w, 404, "Chirp not found")
+		respondWithJSON(w, 404, "Chirp not found")
 	}
 
-	respindWithJSON(w, 200, Chirpy{
+	respondWithJSON(w, 200, Chirpy{
 		ID:        chirpDb.ID,
 		UserId:    chirpDb.UserID,
 		Body:      chirpDb.Body,
 		CreatedAt: chirpDb.CreatedAt,
 		UpdatedAt: chirpDb.UpdatedAt,
 	})
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	bar, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized_bar")
+		return
+	}
+	userId, err := auth.ValidateJWT(bar, cfg.secretKey)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized_user: "+err.Error())
+		return
+	}
+	chirpId := r.PathValue("chirpId")
+	if "" == chirpId {
+		respondWithError(w, 422, "Please provide chirpId")
+		return
+	}
+
+	chirpIdParsed, err := uuid.Parse(chirpId)
+	if err != nil {
+		respondWithError(w, 404, "Chirp not found")
+		return
+	}
+
+	chirpDb, err := cfg.db.GetChirp(context.Background(), chirpIdParsed)
+	if err != nil {
+		respondWithError(w, 404, "Chirp not found")
+	}
+
+	if chirpDb.UserID != userId {
+		respondWithError(w, 403, "Forbiden")
+		return
+	}
+
+	dcParams := database.DeleteChirpParams{
+		ID:     chirpDb.ID,
+		UserID: userId,
+	}
+	err = cfg.db.DeleteChirp(context.Background(), dcParams)
+	if err != nil {
+		respondWithError(w, 400, "Something goes wrong: deleteChirp: "+err.Error())
+	}
+
+	w.WriteHeader(204)
 }

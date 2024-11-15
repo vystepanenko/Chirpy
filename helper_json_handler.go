@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func respindWithJSON(w http.ResponseWriter, code int, payload interface{}) error {
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error {
 	response, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -20,5 +20,5 @@ func respindWithJSON(w http.ResponseWriter, code int, payload interface{}) error
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) error {
-	return respindWithJSON(w, code, map[string]string{"error": msg})
+	return respondWithJSON(w, code, map[string]string{"error": msg})
 }

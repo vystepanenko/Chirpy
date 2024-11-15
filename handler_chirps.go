@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -129,6 +130,10 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+	sort := r.URL.Query().Get("sort")
+	if sort == "" {
+		sort = "ASC"
+	}
 
 	allChirps := make([]Chirpy, 0)
 	for _, v := range chirps {
@@ -141,7 +146,20 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 		})
 	}
 
+	allChirps = sortChirpsByCreatedAt(allChirps, strings.ToUpper(sort))
 	respondWithJSON(w, 200, allChirps)
+}
+
+func sortChirpsByCreatedAt(allChirps []Chirpy, order string) []Chirpy {
+	sort.Slice(allChirps, func(i, j int) bool {
+		if order == "DESC" {
+			return allChirps[i].CreatedAt.After(allChirps[j].CreatedAt)
+		}
+		// Default to ASC
+		return allChirps[i].CreatedAt.Before(allChirps[j].CreatedAt)
+	})
+
+	return allChirps
 }
 
 func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {

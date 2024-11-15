@@ -18,6 +18,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	secretKey      string
 }
 
 func main() {
@@ -35,14 +36,19 @@ func main() {
 	dbUrl := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
-		fmt.Println("Error opening database connection:", err)
+		fmt.Printf("Error opening database connection: %s", err)
 	}
 	defer db.Close()
 	dbQueries := database.New(db)
 
+	key := os.Getenv("SECRET_KEY")
+	if key == "" {
+		fmt.Println("Secret key not found")
+	}
 	apiCfg := &apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
+		secretKey:      key,
 	}
 
 	mux.Handle(
@@ -56,6 +62,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetAllChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.handlerGetChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerUserCreate)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerUserLogin)
 
 	log.Printf("Server start on port: %s\n", port)
 	log.Fatal(server.ListenAndServe())

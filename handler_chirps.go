@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/vystepanenko/Chirpy/internal/auth"
 	"github.com/vystepanenko/Chirpy/internal/database"
 )
 
@@ -25,9 +26,18 @@ type Chirpy struct {
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	bar, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized_bar")
+		return
+	}
+	userId, err := auth.ValidateJWT(bar, cfg.secretKey)
+	if err != nil {
+		respondWithError(w, 401, "Unauthorized_user: "+err.Error())
+		return
+	}
 	type requestBody struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	dat, err := io.ReadAll(r.Body)
@@ -50,7 +60,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	}
 	chirpyParams := database.CreateChirpsParams{
 		Body:   cleaned,
-		UserID: params.UserId,
+		UserID: userId,
 	}
 
 	c, err := cfg.db.CreateChirps(context.Background(), chirpyParams)
